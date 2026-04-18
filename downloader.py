@@ -1,8 +1,12 @@
 import subprocess
 import random
 import os
+import json
 import requests
 from urllib.parse import urlparse
+
+MIN_AUDIO_BITRATE_KBPS = 256
+MIN_SAMPLE_RATE_HZ = 44100
 
 def _load_track_urls(track_list_file="ncs_tracks.txt"):
     if not os.path.exists(track_list_file):
@@ -72,6 +76,43 @@ def _convert_to_wav(src_audio, target_wav):
     )
 
 
+def _probe_audio_quality(path):
+    result = subprocess.run(
+        [
+            "ffprobe",
+            "-v",
+            "error",
+            "-show_streams",
+            "-show_format",
+            "-of",
+            "json",
+            path,
+        ],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    info = json.loads(result.stdout)
+    streams = info.get("streams", [])
+    audio_stream = next((s for s in streams if s.get("codec_type") == "audio"), {})
+
+    sample_rate = int(audio_stream.get("sample_rate") or 0)
+    bit_rate_raw = (
+        audio_stream.get("bit_rate")
+        or info.get("format", {}).get("bit_rate")
+        or 0
+    )
+    bit_rate_kbps = int(bit_rate_raw) / 1000 if bit_rate_raw else 0
+    return sample_rate, bit_rate_kbps
+
+
+def _is_high_quality(sample_rate, bit_rate_kbps):
+    # For lossless sources where bitrate may be unavailable, rely on sample rate.
+    if bit_rate_kbps <= 0 and sample_rate >= MIN_SAMPLE_RATE_HZ:
+        return True
+    return sample_rate >= MIN_SAMPLE_RATE_HZ and bit_rate_kbps >= MIN_AUDIO_BITRATE_KBPS
+
+
 def download_random_ncs_song(output_dir="downloads"):
     """
     Legal/offical-link mode:
@@ -97,39 +138,45 @@ def download_random_ncs_song(output_dir="downloads"):
     if not selected_url:
         print("No fresh track found (all URLs already used in history).")
         return None, None
-
-    print(f"Selected official track URL: {selected_url}")
-
-    temp_audio = os.path.join(output_dir, "source_audio.tmp")
-    if os.path.exists(temp_audio):
-        os.remove(temp_audio)
+    candidates = [selected_url] + [u for u in valid_urls if u != selected_url]
 
     output_wav = os.path.join(output_dir, "audio.wav")
     if os.path.exists(output_wav):
         os.remove(output_wav)
 
-    try:
-        _download_direct_audio(selected_url, temp_audio)
-        _convert_to_wav(temp_audio, output_wav)
-        _save_history(selected_url)
-    except requests.RequestException as e:
-        print(f"Download request failed: {e}")
-        return None, None
-    except subprocess.CalledProcessError as e:
-        print(f"FFmpeg conversion failed: {e}")
-        if getattr(e, "stderr", None):
-            print(e.stderr)
-        return None, None
-    except Exception as e:
-        print(f"Unexpected download error: {e}")
-        return None, None
-    finally:
+    for candidate_url in candidates:
+        print(f"Trying official track URL: {candidate_url}")
+        temp_audio = os.path.join(output_dir, "source_audio.tmp")
         if os.path.exists(temp_audio):
             os.remove(temp_audio)
 
-    title = os.path.basename(urlparse(selected_url).path) or "NCS Track"
-    print(f"Download complete: {output_wav}")
-    return output_wav, title
+        try:
+            _download_direct_audio(candidate_url, temp_audio)
+            sample_rate, bit_rate_kbps = _probe_audio_quality(temp_audio)
+            print(f"Detected source quality: {sample_rate} Hz, {bit_rate_kbps:.1f} kbps")
+            if not _is_high_quality(sample_rate, bit_rate_kbps):
+                print("Skipping: source quality below high-quality threshold.")
+                continue
+
+            _convert_to_wav(temp_audio, output_wav)
+            _save_history(candidate_url)
+            title = os.path.basename(urlparse(candidate_url).path) or "NCS Track"
+            print(f"Download complete: {output_wav}")
+            return output_wav, title
+        except requests.RequestException as e:
+            print(f"Download request failed: {e}")
+        except subprocess.CalledProcessError as e:
+            print(f"FFmpeg/FFprobe failed: {e}")
+            if getattr(e, "stderr", None):
+                print(e.stderr)
+        except Exception as e:
+            print(f"Unexpected download error: {e}")
+        finally:
+            if os.path.exists(temp_audio):
+                os.remove(temp_audio)
+
+    print("No high-quality track found from provided URLs.")
+    return None, None
 
 if __name__ == "__main__":
     audio_path, title = download_random_ncs_song()
