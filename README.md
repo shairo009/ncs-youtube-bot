@@ -24,6 +24,15 @@ This is a professional, AI-powered automation pipeline designed to run a YouTube
 
 ## 🚀 Getting Started
 
+### 0. Track Source Setup (Legal Mode, No Cookies)
+This bot now uses a legal source file instead of scraping YouTube.
+
+1. Open `ncs_tracks.txt`.
+2. Paste **direct official NCS audio download links** (`.mp3/.wav/.flac`), one per line.
+3. Save the file and run the pipeline.
+
+If `ncs_tracks.txt` is empty (or contains non-direct links like `https://ncs.io/...`), the run will stop safely before video generation.
+
 ### 1. Local Authentication (One-time)
 Before deploying to GitHub, you must bind your channel:
 1. Place your `client_secret.json` in the root directory.

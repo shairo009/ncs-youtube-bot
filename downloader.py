@@ -1,120 +1,135 @@
 import subprocess
 import random
 import os
-import json
+import requests
+from urllib.parse import urlparse
+
+def _load_track_urls(track_list_file="ncs_tracks.txt"):
+    if not os.path.exists(track_list_file):
+        return []
+
+    urls = []
+    with open(track_list_file, "r", encoding="utf-8") as f:
+        for line in f:
+            item = line.strip()
+            if not item or item.startswith("#"):
+                continue
+            urls.append(item)
+    return urls
+
+
+def _is_supported_direct_audio_url(url):
+    path = urlparse(url).path.lower()
+    return path.endswith(".mp3") or path.endswith(".wav") or path.endswith(".flac")
+
+
+def _pick_fresh_track(urls, history_file="downloads_history.txt"):
+    if os.path.exists(history_file):
+        with open(history_file, "r", encoding="utf-8") as f:
+            history = set(f.read().splitlines())
+    else:
+        history = set()
+
+    random.shuffle(urls)
+    for url in urls:
+        if url not in history:
+            return url
+    return None
+
+
+def _save_history(selected_url, history_file="downloads_history.txt"):
+    with open(history_file, "a", encoding="utf-8") as f:
+        f.write(selected_url + "\n")
+
+
+def _download_direct_audio(url, out_mp3):
+    with requests.get(url, stream=True, timeout=90) as r:
+        r.raise_for_status()
+        with open(out_mp3, "wb") as f:
+            for chunk in r.iter_content(chunk_size=8192):
+                if chunk:
+                    f.write(chunk)
+
+
+def _convert_to_wav(src_audio, target_wav):
+    subprocess.run(
+        [
+            "ffmpeg",
+            "-y",
+            "-i",
+            src_audio,
+            "-acodec",
+            "pcm_s16le",
+            "-ar",
+            "44100",
+            "-ac",
+            "2",
+            target_wav,
+        ],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
 
 def download_random_ncs_song(output_dir="downloads"):
     """
-    Fetches the latest videos from the official NCS YouTube channel and downloads
-    a random one as a high-quality WAV file.
+    Legal/offical-link mode:
+    - Reads direct NCS audio download URLs from ncs_tracks.txt
+    - Downloads one fresh track
+    - Converts to downloads/audio.wav
     """
     os.makedirs(output_dir, exist_ok=True)
-    print("Fetching list of latest NCS videos from YouTube...")
-    
-    # Target official NCS YouTube Videos
-    ncs_url = "https://www.youtube.com/@NoCopyrightSounds/videos"
-    cookies_file = "cookies.txt"
-    
-    # 1. Fetch JSON data of latest 50 videos
-    cmd = [
-        "yt-dlp",
-        "--dump-json",
-        "--flat-playlist",
-        "--playlist-end", "50",
-        ncs_url
-    ]
-    
-    # Use cookies if available
-    if os.path.exists(cookies_file):
-        cmd.extend(["--cookies", cookies_file])
-        print("Using cookies.txt for authentication.")
+
+    track_urls = _load_track_urls("ncs_tracks.txt")
+    if not track_urls:
+        print("No track URLs found in ncs_tracks.txt")
+        print("Add direct NCS download URLs (mp3/wav/flac), one per line.")
+        return None, None
+
+    valid_urls = [u for u in track_urls if _is_supported_direct_audio_url(u)]
+    if not valid_urls:
+        print("No direct audio URLs detected in ncs_tracks.txt")
+        print("Use direct file links from official NCS download button (ending in .mp3/.wav/.flac).")
+        return None, None
+
+    selected_url = _pick_fresh_track(valid_urls)
+    if not selected_url:
+        print("No fresh track found (all URLs already used in history).")
+        return None, None
+
+    print(f"Selected official track URL: {selected_url}")
+
+    temp_audio = os.path.join(output_dir, "source_audio.tmp")
+    if os.path.exists(temp_audio):
+        os.remove(temp_audio)
+
+    output_wav = os.path.join(output_dir, "audio.wav")
+    if os.path.exists(output_wav):
+        os.remove(output_wav)
 
     try:
-        print("Running yt-dlp to fetch video list...")
-        result = subprocess.run(cmd, capture_output=True, text=True, check=True)
-        videos = []
-        for line in result.stdout.strip().split("\n"):
-            if not line: continue
-            try:
-                data = json.loads(line)
-                # Ensure it's a real video from the NCS channel
-                if data.get("id") and data.get("title") and data.get("url"):
-                    uploader = data.get("uploader") or ""
-                    if "NoCopyrightSounds" in uploader or "@NoCopyrightSounds" in ncs_url:
-                        videos.append({"id": data["id"], "title": data["title"], "url": data["url"] or f"https://www.youtube.com/watch?v={data['id']}"})
-            except json.JSONDecodeError:
-                pass
-        
-        if not videos:
-            print("Error: No videos found. YouTube might be blocking the request.")
-            return None, None
-            
-        print(f"Found {len(videos)} videos. Finding a fresh one...")
-        
-        # Load History
-        history_file = "downloads_history.txt"
-        if os.path.exists(history_file):
-            with open(history_file, 'r', encoding='utf-8') as f:
-                history = f.read().splitlines()
-        else:
-            history = []
-            
-        random.shuffle(videos)
-        chosen = None
-        for v in videos:
-            if v['id'] not in history:
-                chosen = v
-                break
-                
-        if not chosen:
-            print("Notice: No fresh videos found. Resetting history or increasing limit is recommended.")
-            return None, None
-        
-        # Save to history
-        with open(history_file, 'a', encoding='utf-8') as f:
-            f.write(chosen['id'] + "\n")
-            
-        target_v_url = chosen['url']
-        print(f"Selected: {chosen['title']} ({target_v_url})")
-        
-        audio_file = os.path.join(output_dir, "audio.wav")
-        if os.path.exists(audio_file):
-            os.remove(audio_file)
-            
-        # 2. High Quality Download Command
-        dl_cmd = [
-            "yt-dlp",
-            "-f", "bestaudio/best",
-            "--extract-audio",
-            "--audio-format", "wav", 
-            "--audio-quality", "0",      # Highest quality (320kbps equivalent)
-            "--rm-cache-dir",            # Fresh state
-            "--output", audio_file
-        ]
-        
-        if os.path.exists(cookies_file):
-            dl_cmd.extend(["--cookies", cookies_file])
-            
-        dl_cmd.append(target_v_url)
-        
-        print("Downloading High-Quality audio...")
-        subprocess.run(dl_cmd, capture_output=True, text=True, check=True)
-        
-        if os.path.exists(audio_file):
-            print(f"Download complete: {audio_file}")
-            return audio_file, chosen['title']
-        else:
-            print("Download failed.")
-            return None, None
-            
+        _download_direct_audio(selected_url, temp_audio)
+        _convert_to_wav(temp_audio, output_wav)
+        _save_history(selected_url)
+    except requests.RequestException as e:
+        print(f"Download request failed: {e}")
+        return None, None
     except subprocess.CalledProcessError as e:
-        print(f"Command Error: yt-dlp failed with exit code {e.returncode}.")
-        if getattr(e, 'stderr', None):
-            print(f"yt-dlp STDERR: {e.stderr}")
+        print(f"FFmpeg conversion failed: {e}")
+        if getattr(e, "stderr", None):
+            print(e.stderr)
         return None, None
     except Exception as e:
-        print(f"Error downloading: {e}")
+        print(f"Unexpected download error: {e}")
         return None, None
+    finally:
+        if os.path.exists(temp_audio):
+            os.remove(temp_audio)
+
+    title = os.path.basename(urlparse(selected_url).path) or "NCS Track"
+    print(f"Download complete: {output_wav}")
+    return output_wav, title
 
 if __name__ == "__main__":
     audio_path, title = download_random_ncs_song()

@@ -1,0 +1,7 @@
+# Add official direct NCS audio download URLs here (one per line).
+# Example format:
+# https://cdn.example.com/path/to/track.mp3
+#
+# Notes:
+# - Use direct file links from the official NCS download flow.
+# - Only .mp3/.wav/.flac links are accepted by the bot.

@@ -42,11 +42,6 @@ jobs:
         with:
           python-version: '3.10'
 
-      - name: Setup Node.js (for yt-dlp JS runtime)
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-
       - name: Install System Dependencies (FFmpeg, OpenCV, Aria2)
         run: |
           sudo apt-get update
@@ -55,7 +50,6 @@ jobs:
       - name: Install Python Dependencies
         run: |
           pip install --upgrade pip
-          pip install --upgrade yt-dlp
           pip install -r requirements.txt
           pip install playwright==1.42.0
           python -m playwright install chromium ffmpeg
@@ -64,24 +58,15 @@ jobs:
         env:
           CLIENT_SECRET: ${{ secrets.CLIENT_SECRET_JSON }}
           TOKEN_JSON: ${{ secrets.TOKEN_JSON }}
-          YTDLP_COOKIES: ${{ secrets.YTDLP_COOKIES }}
-          YOUTUBE_COOKIES: ${{ secrets.YOUTUBE_COOKIES }}
+          NCS_TRACK_URLS: ${{ secrets.NCS_TRACK_URLS }}
         run: |
           echo "$CLIENT_SECRET" > client_secret.json
           echo "$TOKEN_JSON" > token.json
-
-          if [ -n "$YTDLP_COOKIES" ]; then
-            printf "%s\n" "$YTDLP_COOKIES" > cookies.txt
-            echo "✅ Loaded cookies from YTDLP_COOKIES."
-          elif [ -n "$YOUTUBE_COOKIES" ]; then
-            if echo "$YOUTUBE_COOKIES" | base64 --decode > cookies.txt 2>/dev/null; then
-              echo "✅ Loaded cookies from YOUTUBE_COOKIES (base64)."
-            else
-              printf "%s\n" "$YOUTUBE_COOKIES" > cookies.txt
-              echo "✅ Loaded cookies from YOUTUBE_COOKIES (raw text)."
-            fi
+          if [ -n "$NCS_TRACK_URLS" ]; then
+            printf "%s\n" "$NCS_TRACK_URLS" > ncs_tracks.txt
+            echo "✅ Loaded NCS track URLs from NCS_TRACK_URLS secret."
           else
-            echo "⚠️ No YouTube cookies provided. Download might be blocked on CI/CD."
+            echo "⚠️ NCS_TRACK_URLS secret not set. Using repository ncs_tracks.txt."
           fi
 
       - name: Determine Trigger Type & Run Pipeline
