@@ -36,6 +36,7 @@ def create_music_video(audio_path="downloads/audio.wav", image_path="downloads/b
         
     display_title = song_title[:32] + "..." if len(song_title) > 32 else song_title
     html = html.replace("{{SONG_NAME}}", display_title)
+    html = html.replace("{{DURATION}}", str(duration))
     
     with open("temp_ui.html", "w", encoding="utf-8") as f:
         f.write(html)
