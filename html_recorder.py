@@ -8,14 +8,16 @@ async def record_html_bg(duration_sec, output_path):
     if os.path.exists(output_path):
         os.remove(output_path)
         
-    html_path = f"file://{os.path.abspath('temp_ui.html')}"
+    import time
+    html_path = f"file://{os.path.abspath('temp_ui.html')}?v={int(time.time())}"
     
     async with async_playwright() as p:
         browser = await p.chromium.launch(headless=True)
         # We enforce strict 1080x1920 output dimension for shorts
         context = await browser.new_context(
+            viewport={"width": 1080, "height": 1920},
             record_video_dir=os.path.dirname(output_path),
-            record_video_size={"width": 540, "height": 960}
+            record_video_size={"width": 1080, "height": 1920}
         )
         page = await context.new_page()
         
