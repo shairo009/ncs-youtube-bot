@@ -6,6 +6,9 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://unpkg.com/lucide@latest"></script>
   <style>
+    :root {
+      --theme-color: {{THEME_COLOR}};
+    }
     body {
       background: #e6e9ef;
       margin: 0;
@@ -51,7 +54,7 @@
 
         <!-- Track Info -->
         <div class="text-center mt-1 px-8">
-          <p class="text-[10px] font-bold tracking-[0.2em] text-cyan-600 opacity-50 mb-1 uppercase">NO COPY RIGHT SONG</p>
+          <p class="text-[10px] font-bold tracking-[0.2em] opacity-80 mb-1 uppercase" style="color: var(--theme-color);">NO COPY RIGHT SONG</p>
           <h1 class="text-xl font-bold text-gray-800 tracking-tight leading-tight">{{SONG_NAME}}</h1>
         </div>
       </div>
@@ -80,13 +83,12 @@
               cy="170"
               r="126"
               fill="none"
-              stroke="#22d3ee"
+              stroke="var(--theme-color)"
               stroke-width="5"
               stroke-linecap="round"
               stroke-dasharray="791.68"
               stroke-dashoffset="791.68"
               class="transition-all duration-100 ease-linear"
-              style="filter: drop-shadow(0 0 8px rgba(34, 211, 238, 0.7))"
             />
           </svg>
         </div>
@@ -97,7 +99,7 @@
           class="absolute z-30 transition-all duration-100 ease-linear pointer-events-none"
         >
           <div class="w-[44px] h-[44px] rounded-full bg-[#e6e9ef] shadow-[3px_3px_6px_#bebebe,-2px_-2px_6px_#ffffff] flex items-center justify-center border border-white/90 ring-1 ring-black/5">
-            <span id="bubblePercent" class="text-[10px] font-black text-cyan-500 leading-none">0%</span>
+            <span id="bubblePercent" class="text-[10px] font-black leading-none" style="color: var(--theme-color);">0%</span>
           </div>
         </div>
         
@@ -114,7 +116,7 @@
           <span>00:59</span>
         </div>
         <div class="h-1.5 w-full bg-[#d1d9e6] rounded-full shadow-[inset_2px_2px_4px_#bebebe,inset_-2px_-2px_4px_#ffffff] overflow-hidden">
-          <div id="progBar" class="h-full bg-cyan-400 shadow-[0_0_12px_rgba(34,211,238,0.8)] transition-all duration-100" style="width: 0%;"></div>
+          <div id="progBar" class="h-full transition-all duration-100" style="width: 0%; background: var(--theme-color);"></div>
         </div>
       </div>
 
@@ -125,7 +127,7 @@
             <i data-lucide="minus" width="12" height="12" class="opacity-60"></i>
           </button>
           <div class="w-10 h-10 rounded-full bg-[#e6e9ef] shadow-[inset_3px_3px_6px_#bebebe,inset_-3px_-3px_6px_#ffffff] flex items-center justify-center">
-            <span class="text-xs font-bold text-cyan-500">3</span>
+            <span class="text-xs font-bold" style="color: var(--theme-color);">3</span>
           </div>
           <button class="w-9 h-9 rounded-full bg-[#e6e9ef] shadow-[3px_3px_6px_#bebebe,-3px_-3px_6px_#ffffff] flex items-center justify-center">
             <i data-lucide="plus" width="12" height="12" class="opacity-60"></i>
@@ -140,8 +142,7 @@
           <i data-lucide="skip-back" fill="currentColor" class="opacity-50" width="20" height="20"></i>
         </button>
 
-        <button class="w-20 h-20 rounded-full bg-[#e6e9ef] shadow-[8px_8px_16px_#bebebe,-8px_-8px_16px_#ffffff] flex items-center justify-center text-cyan-500 relative">
-          <div class="absolute inset-0 rounded-full shadow-[inset_0_0_15px_rgba(34,211,238,0.3)] animate-pulse"></div>
+        <button class="w-20 h-20 rounded-full bg-[#e6e9ef] shadow-[8px_8px_16px_#bebebe,-8px_-8px_16px_#ffffff] flex items-center justify-center relative" style="color: var(--theme-color);">
           <i data-lucide="pause" fill="currentColor" width="32" height="32"></i>
         </button>
 
@@ -158,11 +159,13 @@
 
     // Visualizer Bars logic
     const vis = document.getElementById('visContainer');
+    const themeColor = getComputedStyle(document.documentElement).getPropertyValue('--theme-color');
+    
     let bars = [];
     for(let i=0; i<7; i++) {
       let b = document.createElement('div');
-      b.className = 'w-1.5 bg-cyan-400 rounded-full transition-all duration-150';
-      b.style.boxShadow = '0 0 10px rgba(34, 211, 238, 0.6)';
+      b.className = 'w-1.5 rounded-full transition-all duration-150';
+      b.style.backgroundColor = themeColor;
       b.style.height = '40%';
       vis.appendChild(b);
       bars.push(b);

@@ -5,12 +5,35 @@ import sys
 from pathlib import Path
 from moviepy.editor import AudioFileClip, VideoFileClip
 
-def create_music_video(audio_path="downloads/audio.wav", image_path="downloads/background_hd.jpg", output_path="downloads/final_video.mp4", video_type="long", song_title="NCS Release"):
+def get_ncs_color(genre):
+    # Official-ish NCS Color Mapping
+    mapping = {
+        "Drum & Bass": "#F44336", # Red
+        "Drumstep": "#F44336",
+        "House": "#FFC107",        # Yellow
+        "Bass House": "#FFC107",
+        "Trap": "#4CAF50",         # Green
+        "Future Bass": "#4CAF50",
+        "Electro": "#FF9800",      # Orange
+        "Electronic": "#FF9800",
+        "Dubstep": "#2196F3",      # Blue
+        "Future House": "#9C27B0", # Purple
+        "Indie": "#1DE9B6",        # Mint
+        "Alternative": "#1DE9B6",
+        "Chillstep": "#00BCD4",    # Cyan
+        "Hardstyle": "#FFFFFF",    # White
+    }
+    for g, color in mapping.items():
+        if g.lower() in genre.lower():
+            return color
+    return "#00BCD4" # Default Cyan
+
+def create_music_video(audio_path="downloads/audio.wav", image_path=None, output_path="downloads/final_video.mp4", video_type="long", song_title="NCS Release", song_genre="NCS Release"):
     if not os.path.exists(audio_path):
         print("Error: Missing audio source.")
         return False
         
-    print("Preparing to assemble modern Neumorphic UI...")
+    print(f"Preparing to assemble modern Neumorphic UI for genre: {song_genre}...")
     
     # 1. Snippet the Audio
     audio_clip = AudioFileClip(audio_path)
@@ -26,7 +49,7 @@ def create_music_video(audio_path="downloads/audio.wav", image_path="downloads/b
             audio_clip = audio_clip.subclip(time_offset, time_offset + 59)
             duration = 59
             
-    # 2. Inject Song Title into HTML Template
+    # 2. Inject Song Title and Color into HTML Template
     template_path = "ui_template.html"
     if not os.path.exists(template_path):
         print(f"Error: Custom UI template {template_path} not found!")
@@ -36,8 +59,11 @@ def create_music_video(audio_path="downloads/audio.wav", image_path="downloads/b
         html = f.read()
         
     display_title = song_title[:32] + "..." if len(song_title) > 32 else song_title
+    theme_color = get_ncs_color(song_genre)
+    
     html = html.replace("{{SONG_NAME}}", display_title)
     html = html.replace("{{DURATION}}", str(duration))
+    html = html.replace("{{THEME_COLOR}}", theme_color)
     
     with open("temp_ui.html", "w", encoding="utf-8") as f:
         f.write(html)

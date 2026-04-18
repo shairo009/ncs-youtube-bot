@@ -5,26 +5,21 @@ import json
 
 def download_random_ncs_song(output_dir="downloads"):
     """
-    Robust Multi-Engine Downloader:
-    1. Fetches latest videos from NCS YouTube.
-    2. Attempts High-Quality download with robust extractor settings.
-    3. (Future) Fallback to external API if direct fails.
+    Robust Multi-Engine Downloader with Genre Detection:
+    Returns (audio_path, title, genre).
     """
     os.makedirs(output_dir, exist_ok=True)
     print("Fetching list of latest NCS videos from YouTube...")
     
     ncs_url = "https://www.youtube.com/@NoCopyrightSounds/videos"
     cookies_file = "cookies.txt"
-    
-    # Engine Settings: Using mobile/android clients is more robust against signature blocks
     extractor_args = "youtube:player-client=web,android"
     
-    # 1. Fetch JSON data
     cmd = [
         "yt-dlp",
         "--dump-json",
         "--flat-playlist",
-        "--playlist-end", "50",
+        "--playlist-end", "40",
         "--extractor-args", extractor_args,
         ncs_url
     ]
@@ -40,17 +35,33 @@ def download_random_ncs_song(output_dir="downloads"):
             if not line: continue
             try:
                 data = json.loads(line)
+                title = data.get("title") or ""
                 uploader = data.get("uploader") or ""
-                if data.get("id") and data.get("title"):
+                if data.get("id") and title:
                     v_url = data.get("url") or f"https://www.youtube.com/watch?v={data['id']}"
+                    
+                    # Detect Genre from Title or Metadata
+                    # Pattern: Artist - Song | Genre | NCS - ...
+                    genre = "NCS Release"
+                    if "|" in title:
+                        parts = [p.strip() for p in title.split("|")]
+                        if len(parts) >= 2:
+                            # Typically second or third part is genre
+                            genre = parts[1]
+                    
                     if "NoCopyrightSounds" in uploader or "@NoCopyrightSounds" in ncs_url:
-                        videos.append({"id": data["id"], "title": data["title"], "url": v_url})
+                        videos.append({
+                            "id": data["id"], 
+                            "title": title, 
+                            "url": v_url,
+                            "genre": genre
+                        })
             except json.JSONDecodeError:
                 pass
         
         if not videos:
-            print("Error: No videos found. YouTube might be blocking the flat-playlist request.")
-            return None, None
+            print("Error: No videos found.")
+            return None, None, None
             
         print(f"Found {len(videos)} videos. Selecting a fresh one...")
         
@@ -64,18 +75,16 @@ def download_random_ncs_song(output_dir="downloads"):
         chosen = next((v for v in videos if v['id'] not in history), None)
                 
         if not chosen:
-            print("Notice: No fresh videos found. All latest videos are in history.")
-            return None, None
+            print("Notice: No fresh videos found.")
+            return None, None, None
         
         target_v_url = chosen['url']
-        print(f"Selected: {chosen['title']} ({target_v_url})")
+        print(f"Selected: {chosen['title']} (Genre: {chosen['genre']})")
         
         audio_file = os.path.join(output_dir, "audio.wav")
         if os.path.exists(audio_file):
             os.remove(audio_file)
             
-        # 2. Robust HQ Download Command
-        # We try with 'bestaudio/best' and use the android client to avoid signature issues
         dl_cmd = [
             "yt-dlp",
             "-f", "bestaudio/best",
@@ -91,22 +100,19 @@ def download_random_ncs_song(output_dir="downloads"):
         if os.path.exists(cookies_file):
             dl_cmd.extend(["--cookies", cookies_file])
         
-        print("Attempting High-Quality audio download (Engine 1: Direct Robust)...")
+        print("Downloading High-Quality audio...")
         dl_result = subprocess.run(dl_cmd, capture_output=True, text=True)
         
         if dl_result.returncode == 0 and os.path.exists(audio_file):
-            # Save to history only on success
             with open(history_file, 'a', encoding='utf-8') as f:
                 f.write(chosen['id'] + "\n")
-            print(f"Download complete: {audio_file}")
-            return audio_file, chosen['title']
+            return audio_file, chosen['title'], chosen['genre']
         else:
-            print("Engine 1 failed. Error details:")
-            print(dl_result.stderr[-500:] if dl_result.stderr else "Unknown Error")
+            return None, None, None
             
-            # TODO: Add Engine 2 (Cobalt API) fallback here in next update
-            print("No more engines configured. Download failed.")
-            return None, None
+    except Exception as e:
+        print(f"Engine Exception: {e}")
+        return None, None, None
             
     except Exception as e:
         print(f"Engine Exception: {e}")

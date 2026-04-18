@@ -12,17 +12,17 @@ def run_ncs_automation(video_type="long", no_upload=False):
     
     # STEP 1: Get Audio
     print("\n>>> STEP 1: Fetching Music...")
-    audio_path, title = download_random_ncs_song("downloads")
+    audio_path, title, genre = download_random_ncs_song("downloads")
     if not audio_path:
         print("Pipeline Failed at Step 1.")
         return
         
     # STEP 2: Render Final Video with Visualizer Overlay
-    print("\n>>> STEP 2: Compiling Music Video with Visualizer...")
+    print(f"\n>>> STEP 2: Compiling Music Video with Visualizer (Genre: {genre})...")
     video_path = "downloads/final_video.mp4"
     
-    # No background image used as per user request
-    success = create_music_video(audio_path, None, video_path, video_type, song_title=title)
+    # Passing the genre for dynamic color theming
+    success = create_music_video(audio_path, None, video_path, video_type, song_title=title, song_genre=genre)
     if not success:
         print("Pipeline Failed at Step 2.")
         return
