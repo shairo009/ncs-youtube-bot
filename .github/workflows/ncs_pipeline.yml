@@ -25,8 +25,8 @@ on:
 
 jobs:
   run-bot:
-      permissions:
-            contents: write
+    permissions:
+      contents: write
     runs-on: ubuntu-latest
     steps:
       - name: Auto-Checkout Repository 
