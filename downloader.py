@@ -39,7 +39,8 @@ def download_random_ncs_song(output_dir="downloads"):
                 data = json.loads(line)
                 # Ensure it's a real video from the NCS channel
                 if data.get("id") and data.get("title") and data.get("url"):
-                    if "NoCopyrightSounds" in data.get("uploader", "") or "@NoCopyrightSounds" in ncs_url:
+                    uploader = data.get("uploader") or ""
+                    if "NoCopyrightSounds" in uploader or "@NoCopyrightSounds" in ncs_url:
                         videos.append({"id": data["id"], "title": data["title"], "url": data["url"] or f"https://www.youtube.com/watch?v={data['id']}"})
             except json.JSONDecodeError:
                 pass
