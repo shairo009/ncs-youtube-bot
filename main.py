@@ -6,7 +6,7 @@ from image_gen import create_background
 from video_compiler import create_music_video
 from uploader import run_upload
 
-def run_ncs_automation(video_type="long"):
+def run_ncs_automation(video_type="long", upload_enabled=True):
     print("==================================================")
     print(f"  🚀 STARTING NCS YOUTUBE BOT ({video_type.upper()} MODE)")
     print("==================================================")
@@ -34,13 +34,18 @@ def run_ncs_automation(video_type="long"):
         print("Pipeline Failed at Step 3.")
         return
         
+    if not upload_enabled:
+        print("\n✅ Video generated successfully. Upload is disabled for manual review.")
+        print(f"Review this file before posting: {video_path}")
+        return
+
     # STEP 4: Upload to YouTube
     print("\n>>> STEP 4: Uploading to YouTube...")
     upload_success = run_upload(video_path, title, video_type)
-    
+
     if upload_success:
         print("\n🎉 AUTOMATION PIPELINE COMPLETED SUCCESSFULLY! 🎉")
-        
+
         # Cleanup heavy generated files to save GitHub Storage Space
         print("🧹 Cleaning up workspace to prevent disk bloat...")
         try:
@@ -50,7 +55,6 @@ def run_ncs_automation(video_type="long"):
             print("Cleanup finished successfully.")
         except Exception as e:
             print(f"Warning: Failed to cleanup some files natively: {e}")
-            
     else:
         print("\n❌ Pipeline Failed at Final Upload Step.")
         
@@ -58,6 +62,7 @@ def run_ncs_automation(video_type="long"):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="NCS YouTube Music Bot")
     parser.add_argument("--type", choices=["long", "short"], default="long", help="Generate a full 16:9 video or a 9:16 Short")
+    parser.add_argument("--no-upload", action="store_true", help="Generate video only, skip YouTube upload.")
     args = parser.parse_args()
     
-    run_ncs_automation(args.type)
+    run_ncs_automation(args.type, upload_enabled=not args.no_upload)

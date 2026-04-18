@@ -22,6 +22,11 @@ on:
         options:
         - short
         - long
+      upload_to_youtube:
+        description: 'Upload generated video to YouTube'
+        required: true
+        default: false
+        type: boolean
 
 jobs:
   run-bot:
@@ -83,14 +88,26 @@ jobs:
         run: |
           # If triggered manually via workflow_dispatch, use user input
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            python main.py --type ${{ github.event.inputs.video_type }}
+            if [ "${{ github.event.inputs.upload_to_youtube }}" = "true" ]; then
+              python main.py --type ${{ github.event.inputs.video_type }}
+            else
+              python main.py --type ${{ github.event.inputs.video_type }} --no-upload
+            fi
           # If triggered by specific cron time for the Long Video
           elif [ "${{ github.event.schedule }}" = "30 22 * * *" ]; then
-            python main.py --type long
+            python main.py --type long --no-upload
           # Default to Short for all other scheduled runs
           else
-            python main.py --type short
+            python main.py --type short --no-upload
           fi
+
+      - name: Upload generated video for review
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: generated-video-${{ github.run_id }}
+          path: downloads/final_video.mp4
+          if-no-files-found: warn
 
       - name: Commit history to prevent duplicates
         run: |
