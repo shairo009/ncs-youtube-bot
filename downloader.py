@@ -10,11 +10,10 @@ def download_audio_via_cobalt(url, output_file):
     import requests
     print("Engine 2: Attempting download via Cobalt API...")
     try:
-        api_url = "https://api.cobalt.tools/api/json"
+        api_url = "https://api.cobalt.tools/"
         headers = {
             "Accept": "application/json",
-            "Content-Type": "application/json",
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+            "Content-Type": "application/json"
         }
         payload = {
             "url": url,
@@ -50,7 +49,7 @@ def download_random_ncs_song(output_dir="downloads"):
     
     ncs_url = "https://www.youtube.com/@NoCopyrightSounds/videos"
     cookies_file = "cookies.txt"
-    extractor_args = "youtube:player-client=web,android"
+    extractor_args = "youtube:player-client=ios"
     
     cmd = [
         "yt-dlp",
@@ -80,8 +79,10 @@ def download_random_ncs_song(output_dir="downloads"):
                     # Detect Genre from Title or Metadata
                     # Pattern: Artist - Song | Genre | NCS - ...
                     genre = "NCS Release"
-                    if "|" in title:
-                        parts = [p.strip() for p in title.split("|")]
+                    # Handle both standard '|' and full-width '｜' pipes
+                    title_clean = title.replace("｜", "|")
+                    if "|" in title_clean:
+                        parts = [p.strip() for p in title_clean.split("|")]
                         if len(parts) >= 2:
                             # Typically second or third part is genre
                             genre = parts[1]
@@ -109,8 +110,28 @@ def download_random_ncs_song(output_dir="downloads"):
                 history = f.read().splitlines()
             
         random.shuffle(videos)
-        chosen = next((v for v in videos if v['id'] not in history), None)
+        
+        # Read last genre to avoid repetition
+        last_genre_file = "last_genre.txt"
+        last_genre = ""
+        if os.path.exists(last_genre_file):
+            with open(last_genre_file, 'r', encoding='utf-8') as f:
+                last_genre = f.read().strip()
                 
+        fresh_videos = [v for v in videos if v['id'] not in history]
+        
+        # Filter by genre (rotation)
+        filtered_videos = [v for v in fresh_videos if v['genre'].lower() != last_genre.lower()]
+        
+        # Selection: Try filtered first, then fallback to any fresh video
+        chosen = None
+        if filtered_videos:
+            print(f"🔄 Rotating color: Skipping last genre '{last_genre}'")
+            chosen = random.choice(filtered_videos)
+        elif fresh_videos:
+            print(f"⚠️ Notice: All fresh videos are '{last_genre}'. Color rotation skipped.")
+            chosen = random.choice(fresh_videos)
+            
         if not chosen:
             print("Notice: No fresh videos found.")
             return None, None, None
@@ -138,24 +159,44 @@ def download_random_ncs_song(output_dir="downloads"):
             # ENGINE 2: Cobalt Fallback
             success = download_audio_via_cobalt(target_v_url, audio_file)
             if not success:
-                print("All Engines Failed. Check logs.")
+                print("All online engines failed. Checking for local fallback...")
+                # CHECK FOR LOCAL FALLBACK
+                local_files = [f for f in os.listdir(output_dir) if f.endswith(('.wav', '.mp3'))]
+                if local_files:
+                    # Pick a random local file but avoid audio.wav if it's empty
+                    valid_files = [f for f in local_files if f != "audio.wav" or os.path.getsize(os.path.join(output_dir, f)) > 0]
+                    if valid_files:
+                        chosen_local = random.choice(valid_files)
+                        print(f"✅ Found local song fallback: {chosen_local}")
+                        
+                        # Extract genre from local filename if possible
+                        local_genre = "NCS Release"
+                        local_title_clean = chosen_local.replace("｜", "|")
+                        if "|" in local_title_clean:
+                            parts = [p.strip() for p in local_title_clean.split("|")]
+                            if len(parts) >= 2:
+                                local_genre = parts[1]
+                        
+                        return os.path.join(output_dir, chosen_local), chosen_local, local_genre
+                
+                print("❌ All Engines and Local Fallback Failed. Check logs.")
                 return None, None, None
 
         if os.path.exists(audio_file):
             with open(history_file, 'a', encoding='utf-8') as f:
                 f.write(chosen['id'] + "\n")
             return audio_file, chosen['title'], chosen['genre']
-        print(f"Engine Exception: {e}")
-        return None, None
+        print("Engine Error: No audio file was created.")
+        return None, None, None
             
     except subprocess.CalledProcessError as e:
         print(f"Command Error: yt-dlp failed with exit code {e.returncode}.")
         if getattr(e, 'stderr', None):
             print(f"yt-dlp STDERR: {e.stderr}")
-        return None, None
+        return None, None, None
     except Exception as e:
         print(f"Error downloading: {e}")
-        return None, None
+        return None, None, None
 
 if __name__ == "__main__":
     audio_path, title = download_random_ncs_song()

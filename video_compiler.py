@@ -3,12 +3,16 @@ import random
 import subprocess
 import sys
 from pathlib import Path
-from moviepy.editor import AudioFileClip, VideoFileClip
+from moviepy import AudioFileClip, VideoFileClip
+import librosa
+import numpy as np
+import json
 
 def get_ncs_color(genre):
     # Official-ish NCS Color Mapping
     mapping = {
         "Drum & Bass": "#F44336", # Red
+        "DnB": "#F44336",
         "Drumstep": "#F44336",
         "House": "#FFC107",        # Yellow
         "Bass House": "#FFC107",
@@ -28,6 +32,33 @@ def get_ncs_color(genre):
             return color
     return "#00BCD4" # Default Cyan
 
+def get_audio_amplitude(audio_path, start_time, duration, fps=10):
+    """
+    Analyzes audio and returns a list of normalized amplitude values (0-100).
+    """
+    try:
+        print(f"📊 Analyzing audio for beat sync ({duration:.1f}s)...")
+        # Load only the required part
+        y, sr = librosa.load(audio_path, offset=start_time, duration=duration)
+        
+        # Calculate RMS amplitude
+        hop_length = int(sr / fps)
+        rms = librosa.feature.rms(y=y, hop_length=hop_length)[0]
+        
+        # Normalize to 0-1.0
+        if len(rms) > 0:
+            rms_min = np.min(rms)
+            rms_max = np.max(rms)
+            if rms_max > rms_min:
+                rms = (rms - rms_min) / (rms_max - rms_min)
+            
+            # Map to 20-100 for height percentage
+            rms_final = (rms * 80 + 20).astype(int).tolist()
+            return rms_final
+    except Exception as e:
+        print(f"⚠️ Audio analysis failed: {e}")
+    return []
+
 def create_music_video(audio_path="downloads/audio.wav", image_path=None, output_path="downloads/final_video.mp4", video_type="long", song_title="NCS Release", song_genre="NCS Release"):
     if not os.path.exists(audio_path):
         print("Error: Missing audio source.")
@@ -46,10 +77,13 @@ def create_music_video(audio_path="downloads/audio.wav", image_path=None, output
             if time_offset + 59 > duration:
                 time_offset = duration - 59
             print(f"✂️  Snipping 59s track from {time_offset:.1f}s")
-            audio_clip = audio_clip.subclip(time_offset, time_offset + 59)
+            audio_clip = audio_clip.subclipped(time_offset, time_offset + 59)
             duration = 59
             
-    # 2. Inject Song Title and Color into HTML Template
+    # 2. Analyze Audio for Visualizer Data
+    amplitude_data = get_audio_amplitude(audio_path, time_offset, duration, fps=10)
+    
+    # 3. Inject Data into HTML Template
     template_path = "ui_template.html"
     if not os.path.exists(template_path):
         print(f"Error: Custom UI template {template_path} not found!")
@@ -64,11 +98,12 @@ def create_music_video(audio_path="downloads/audio.wav", image_path=None, output
     html = html.replace("{{SONG_NAME}}", display_title)
     html = html.replace("{{DURATION}}", str(duration))
     html = html.replace("{{THEME_COLOR}}", theme_color)
+    html = html.replace("{{AMPLITUDE_DATA}}", json.dumps(amplitude_data))
     
     with open("temp_ui.html", "w", encoding="utf-8") as f:
         f.write(html)
         
-    # 3. Call Playwright to record UI locally
+    # 4. Call Playwright to record UI locally
     ui_webm_path = "downloads/ui_recording.webm"
     print(f"Running Playwright Recorder for {duration} seconds...")
     try:
@@ -83,8 +118,8 @@ def create_music_video(audio_path="downloads/audio.wav", image_path=None, output
         return False
         
     print("Muxing final MP4...")
-    video_clip = VideoFileClip(ui_webm_path).subclip(0, duration)
-    final_clip = video_clip.set_audio(audio_clip)
+    video_clip = VideoFileClip(ui_webm_path).subclipped(0, duration)
+    final_clip = video_clip.with_audio(audio_clip)
     
     try:
         final_clip.write_videofile(
