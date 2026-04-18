@@ -108,6 +108,10 @@ def download_random_ncs_song(output_dir="downloads"):
                 f.write(chosen['id'] + "\n")
             return audio_file, chosen['title'], chosen['genre']
         else:
+            print(f"ERROR: Engine 1 (Direct) failed with code {dl_result.returncode}")
+            print("--- STDERR ---")
+            print(dl_result.stderr[-1000:] if dl_result.stderr else "No error output")
+            print("--------------")
             return None, None, None
             
     except Exception as e:
