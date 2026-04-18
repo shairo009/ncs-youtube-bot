@@ -7,18 +7,29 @@
   <script src="https://unpkg.com/lucide@latest"></script>
   <style>
     body {
-      background-color: #e6e9ef;
+      background: url("{{BG_IMAGE_URL}}") center center / cover no-repeat fixed;
       margin: 0;
       padding: 0;
       width: 1080px;
       height: 1920px;
       overflow: hidden;
+      font-family: Arial, sans-serif;
+      position: relative;
+    }
+    body::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(to bottom, rgba(8, 12, 20, 0.45), rgba(8, 12, 20, 0.6));
+      z-index: 0;
     }
     #scale-container {
       width: 400px;
       height: 711.11px;
       transform: scale(2.7);
       transform-origin: top left;
+      position: relative;
+      z-index: 1;
     }
   </style>
 </head>
@@ -28,7 +39,7 @@
   <div id="scale-container">
 
     <!-- Main Full-Screen Container -->
-    <div class="h-full w-full bg-[#e6e9ef] flex flex-col items-center justify-between pt-4 pb-10 px-6 font-sans text-gray-600 select-none">
+    <div class="h-full w-full flex flex-col items-center justify-between pt-4 pb-10 px-6 font-sans text-gray-600 select-none">
       
       <!-- TOP GROUP: Header + Track Info -->
       <div class="w-full flex flex-col items-center">

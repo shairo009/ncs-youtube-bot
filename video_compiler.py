@@ -2,6 +2,7 @@ import os
 import random
 import subprocess
 import sys
+from pathlib import Path
 from moviepy.editor import AudioFileClip, VideoFileClip
 
 def create_music_video(audio_path="downloads/audio.wav", image_path="downloads/background_hd.jpg", output_path="downloads/final_video.mp4", video_type="long", song_title="NCS Release"):
@@ -37,6 +38,9 @@ def create_music_video(audio_path="downloads/audio.wav", image_path="downloads/b
     display_title = song_title[:32] + "..." if len(song_title) > 32 else song_title
     html = html.replace("{{SONG_NAME}}", display_title)
     html = html.replace("{{DURATION}}", str(duration))
+
+    bg_abs_path = Path(image_path).resolve().as_uri()
+    html = html.replace("{{BG_IMAGE_URL}}", bg_abs_path)
     
     with open("temp_ui.html", "w", encoding="utf-8") as f:
         f.write(html)
