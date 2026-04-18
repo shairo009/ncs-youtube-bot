@@ -3,6 +3,43 @@ import random
 import os
 import json
 
+def download_audio_via_cobalt(url, output_file):
+    """
+    Fallback Engine: Download via Cobalt API (Bypasses CI/CD IP blocks).
+    """
+    import requests
+    print("Engine 2: Attempting download via Cobalt API...")
+    try:
+        api_url = "https://api.cobalt.tools/api/json"
+        headers = {
+            "Accept": "application/json",
+            "Content-Type": "application/json",
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+        }
+        payload = {
+            "url": url,
+            "downloadMode": "audio",
+            "audioFormat": "wav",
+            "audioBitrate": "320"
+        }
+        resp = requests.post(api_url, json=payload, headers=headers)
+        data = resp.json()
+        
+        if data.get("status") == "stream":
+            stream_url = data.get("url")
+            print("Cobalt Stream URL found. Downloading...")
+            s_resp = requests.get(stream_url, stream=True)
+            with open(output_file, 'wb') as f:
+                for chunk in s_resp.iter_content(chunk_size=8192):
+                    f.write(chunk)
+            return True
+        else:
+            print(f"Cobalt Error: {data.get('text', 'Unknown Error')}")
+            return False
+    except Exception as e:
+        print(f"Cobalt Exception: {e}")
+        return False
+
 def download_random_ncs_song(output_dir="downloads"):
     """
     Robust Multi-Engine Downloader with Genre Detection:
@@ -82,43 +119,32 @@ def download_random_ncs_song(output_dir="downloads"):
         print(f"Selected: {chosen['title']} (Genre: {chosen['genre']})")
         
         audio_file = os.path.join(output_dir, "audio.wav")
-        if os.path.exists(audio_file):
-            os.remove(audio_file)
+        if os.path.exists(audio_file): os.remove(audio_file)
             
+        # ENGINE 1: Direct yt-dlp
+        print("Engine 1: Attempting Direct Download...")
         dl_cmd = [
-            "yt-dlp",
-            "-f", "bestaudio/best",
-            "--extract-audio",
-            "--audio-format", "wav", 
-            "--audio-quality", "0",
-            "--extractor-args", extractor_args,
-            "--rm-cache-dir",
-            "--output", audio_file,
-            target_v_url
+            "yt-dlp", "-f", "bestaudio/best", "--extract-audio", "--audio-format", "wav", 
+            "--audio-quality", "0", "--extractor-args", extractor_args, "--output", audio_file, target_v_url
         ]
+        if os.path.exists(cookies_file): dl_cmd.extend(["--cookies", cookies_file])
         
-        if os.path.exists(cookies_file):
-            dl_cmd.extend(["--cookies", cookies_file])
-        
-        print("Downloading High-Quality audio...")
         dl_result = subprocess.run(dl_cmd, capture_output=True, text=True)
         
         if dl_result.returncode == 0 and os.path.exists(audio_file):
+            print("Engine 1 Success.")
+        else:
+            print("Engine 1 Failed (Likely IP Block). Switching to Fallback...")
+            # ENGINE 2: Cobalt Fallback
+            success = download_audio_via_cobalt(target_v_url, audio_file)
+            if not success:
+                print("All Engines Failed. Check logs.")
+                return None, None, None
+
+        if os.path.exists(audio_file):
             with open(history_file, 'a', encoding='utf-8') as f:
                 f.write(chosen['id'] + "\n")
             return audio_file, chosen['title'], chosen['genre']
-        else:
-            print(f"ERROR: Engine 1 (Direct) failed with code {dl_result.returncode}")
-            print("--- STDERR ---")
-            print(dl_result.stderr[-1000:] if dl_result.stderr else "No error output")
-            print("--------------")
-            return None, None, None
-            
-    except Exception as e:
-        print(f"Engine Exception: {e}")
-        return None, None, None
-            
-    except Exception as e:
         print(f"Engine Exception: {e}")
         return None, None
             
