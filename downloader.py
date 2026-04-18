@@ -30,7 +30,10 @@ def _is_supported_direct_audio_url(url):
 def _pick_fresh_track(urls, history_file="downloads_history.txt"):
     if os.path.exists(history_file):
         with open(history_file, "r", encoding="utf-8") as f:
-            history = set(f.read().splitlines())
+            history = set(
+                line.strip() for line in f
+                if line.strip().startswith(("http://", "https://"))
+            )
     else:
         history = set()
 

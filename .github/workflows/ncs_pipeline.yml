@@ -80,10 +80,10 @@ jobs:
             fi
           # If triggered by specific cron time for the Long Video
           elif [ "${{ github.event.schedule }}" = "30 22 * * *" ]; then
-            python main.py --type long --no-upload
+            python main.py --type long
           # Default to Short for all other scheduled runs
           else
-            python main.py --type short --no-upload
+            python main.py --type short
           fi
 
       - name: Upload generated video for review
