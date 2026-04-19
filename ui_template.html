@@ -174,16 +174,19 @@
 
     function updateVisualizer(elapsed) {
       if (!AMPLITUDE_DATA || AMPLITUDE_DATA.length === 0) return;
-      
-      const idx = Math.floor(elapsed * 10); // 10 samples per second
+      const idx = Math.floor(elapsed * 10);
       if (idx >= AMPLITUDE_DATA.length) return;
-      
-      const amp = AMPLITUDE_DATA[idx];
-      
+      const frame = AMPLITUDE_DATA[idx];
       bars.forEach((b, i) => {
-        // Add a slight stagger/offset for each bar to make it look spectral
-        const stagger = 1 + (Math.sin(i * 0.5) * 0.2);
-        let h = Math.min(100, Math.max(20, amp * stagger));
+        let h;
+        if (Array.isArray(frame)) {
+          // Spectrum mode: each bar = its own frequency band
+          h = Math.min(100, Math.max(12, frame[i] !== undefined ? frame[i] : 12));
+        } else {
+          // Legacy fallback
+          const stagger = 1 + (Math.sin(i * 0.5) * 0.2);
+          h = Math.min(100, Math.max(20, frame * stagger));
+        }
         b.style.height = h + '%';
       });
     }
