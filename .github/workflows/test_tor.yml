@@ -1,0 +1,65 @@
+name: Test Tor Engine 5
+
+on:
+  workflow_dispatch:
+
+jobs:
+  test-tor:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install Tor
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y tor yt-dlp
+          echo "✅ Tor installed"
+
+      - name: Start Tor and wait for circuit
+        run: |
+          sudo service tor start
+          echo "Waiting 20s for circuit..."
+          sleep 20
+          if nc -z 127.0.0.1 9050; then
+            echo "✅ Tor SOCKS5 ready on port 9050"
+          else
+            echo "❌ Tor port not open" && exit 1
+          fi
+
+      - name: Check external IP via Tor
+        run: |
+          REAL_IP=$(curl -s https://api.ipify.org)
+          TOR_IP=$(curl -s --socks5 127.0.0.1:9050 https://api.ipify.org)
+          echo "Real IP : $REAL_IP"
+          echo "Tor IP  : $TOR_IP"
+          if [ "$REAL_IP" != "$TOR_IP" ]; then
+            echo "✅ IPs are different — Tor is rotating successfully!"
+          else
+            echo "⚠️ IPs same — Tor may not be routing correctly"
+          fi
+
+      - name: Download NCS song via Tor (yt-dlp)
+        run: |
+          echo "Waiting 10s before request (human-like)..."
+          sleep $((RANDOM % 10 + 8))
+          
+          UA="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
+          
+          yt-dlp \
+            --proxy socks5://127.0.0.1:9050 \
+            --user-agent "$UA" \
+            --limit-rate 200K \
+            --sleep-interval 3 \
+            --max-sleep-interval 10 \
+            -f bestaudio/best \
+            --extract-audio --audio-format wav --audio-quality 0 \
+            --no-playlist \
+            -o /tmp/test_song.wav \
+            "https://www.youtube.com/watch?v=NlcYFvVZoqo" 2>&1
+
+      - name: Verify download
+        run: |
+          if [ -f /tmp/test_song.wav ] && [ $(stat -c%s /tmp/test_song.wav) -gt 100000 ]; then
+            SIZE=$(du -sh /tmp/test_song.wav | cut -f1)
+            echo "✅ SUCCESS! Downloaded via Tor — Size: $SIZE"
+          else
+            echo "❌ Download failed or file too small"
+          fi
