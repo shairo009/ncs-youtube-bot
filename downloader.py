@@ -263,6 +263,113 @@ def download_via_ytdlp(url, output_file, use_cookies=True):
 
 
 # ──────────────────────────────────────────────────────
+# ENGINE 5: Tor proxy + YouTube (human-like behaviour)
+# ──────────────────────────────────────────────────────
+
+TOR_PROXY = "socks5://127.0.0.1:9050"
+
+HUMAN_USER_AGENTS = [
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:123.0) Gecko/20100101 Firefox/123.0",
+    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 14_3) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.2 Safari/605.1.15",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36 Edg/123.0.0.0",
+]
+
+
+def _is_tor_running():
+    """Check if Tor SOCKS5 proxy is listening on port 9050."""
+    import socket
+    try:
+        with socket.create_connection(("127.0.0.1", 9050), timeout=3):
+            return True
+    except OSError:
+        return False
+
+
+def download_via_tor_youtube(yt_videos, history, output_file):
+    """
+    Engine 5: Download from YouTube via Tor proxy with human-like behaviour.
+    - Rotates Tor IP by reloading the circuit between retries
+    - Random delays between requests (human-like timing)
+    - Random user-agent rotation
+    - Slow, polite download speed
+    Returns (title, genre, vid_id) on success, or None on failure.
+    """
+    import time
+
+    if not _is_tor_running():
+        print("  Tor not running — Engine 5 skipped.")
+        return None
+
+    fresh = [v for v in yt_videos if v["id"] not in history]
+    candidates = fresh[:5] if fresh else yt_videos[:5]   # Try up to 5 videos
+    random.shuffle(candidates)
+
+    for video in candidates:
+        url     = video["url"]
+        title   = video["title"]
+        genre   = video["genre"]
+        vid_id  = video["id"]
+
+        # Human-like pre-request delay (8–25 seconds)
+        wait = random.uniform(8, 25)
+        print(f"  [Tor] Waiting {wait:.1f}s before request (human-like)...")
+        time.sleep(wait)
+
+        user_agent = random.choice(HUMAN_USER_AGENTS)
+        print(f"  [Tor] Trying: {title}")
+        print(f"  [Tor] UA: {user_agent[:50]}...")
+
+        cmd = [
+            "yt-dlp",
+            "--proxy",         TOR_PROXY,
+            "--user-agent",    user_agent,
+            "--extractor-args", EXTRACTOR_ARGS,
+            "--sleep-interval", str(random.randint(3, 8)),   # pause between fragments
+            "--max-sleep-interval", str(random.randint(10, 20)),
+            "--limit-rate",    "200K",                        # slow = human-like
+            "-f",              "bestaudio/best",
+            "--extract-audio", "--audio-format", "wav",
+            "--audio-quality", "0",
+            "--retries",       "2",
+            "--no-playlist",
+            "--output",        output_file,
+        ]
+        if os.path.exists(COOKIES_FILE):
+            cmd.extend(["--cookies", COOKIES_FILE])
+        cmd.append(url)
+
+        try:
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
+            if os.path.exists(output_file) and os.path.getsize(output_file) > 100_000:
+                print(f"  Engine 5 Success via Tor: {title}")
+                return title, genre, vid_id
+            if os.path.exists(output_file):
+                os.remove(output_file)
+            if result.returncode != 0:
+                print(f"  [Tor] yt-dlp error: {result.stderr[:200]}")
+        except subprocess.TimeoutExpired:
+            print("  [Tor] Download timed out — rotating circuit...")
+        except Exception as e:
+            print(f"  [Tor] Exception: {e}")
+
+        # Rotate Tor circuit before next attempt
+        try:
+            subprocess.run(
+                ["sudo", "killall", "-HUP", "tor"],
+                capture_output=True, timeout=5
+            )
+            time.sleep(random.uniform(5, 10))   # wait for new circuit
+            print("  [Tor] Circuit rotated.")
+        except Exception:
+            pass
+
+    return None
+
+
+# ──────────────────────────────────────────────────────
 # MAIN ENTRY POINT
 # ──────────────────────────────────────────────────────
 def download_random_ncs_song(output_dir="downloads"):
@@ -345,6 +452,16 @@ def download_random_ncs_song(output_dir="downloads"):
             save_to_history(chosen_yt2["id"])
             return audio_file, chosen_yt2["title"], chosen_yt2["genre"]
         print("  Engine 4 failed.")
+
+    # ── ENGINE 5: Tor proxy + YouTube (human-like) ────
+    print("\n>>> ENGINE 5: Tor proxy + YouTube (human-like behaviour)")
+    if yt_videos:
+        result = download_via_tor_youtube(yt_videos, history, audio_file)
+        if result:
+            title_tor, genre_tor, vid_id_tor = result
+            save_to_history(vid_id_tor)
+            return audio_file, title_tor, genre_tor
+        print("  Engine 5 failed.")
 
     print("\n\u274c All Engines Failed. No audio could be downloaded.")
     return None, None, None
