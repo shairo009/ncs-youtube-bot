@@ -90,37 +90,39 @@ def fetch_tracks_from_ncs_io():
 
 def download_from_ncs_io(track_id, title, output_file):
     """
-    Download NCS track audio using yt-dlp YouTube search.
-    NCS.io direct download requires login, so we search YouTube instead.
+    Download NCS track audio using yt-dlp SoundCloud search.
+    NCS.io direct download requires login.
+    SoundCloud is used instead of YouTube to avoid IP blocks on GitHub Actions.
     """
-    print(f"  Searching YouTube for '{title}'...")
-
-    # Build a clean search query: "Artist - Track NCS" (remove brackets/pipes)
+    # Clean search query — remove pipes/brackets
     search_title = re.split(r'\s*[\|\[{]', title)[0].strip()
-    search_query = f"ytsearch1:{search_title} NCS"
 
-    cmd = [
-        "yt-dlp",
-        "--no-playlist",
-        "-f", "bestaudio/best",
-        "--extract-audio", "--audio-format", "wav",
-        "--audio-quality", "0",
-        "--output", output_file,
-        "--match-filter", "duration < 600",
-        search_query,
-    ]
-
-    try:
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
-        if os.path.exists(output_file) and os.path.getsize(output_file) > 100_000:
-            print(f"  Engine 1 Success (YouTube search for NCS.io track)")
-            return True
-        if result.returncode != 0:
-            print(f"  Engine 1 yt-dlp error: {result.stderr[:200]}")
-    except subprocess.TimeoutExpired:
-        print("  Engine 1 search timed out")
-    except Exception as e:
-        print(f"  Engine 1 exception: {e}")
+    # Try SoundCloud search first (less IP-restrictive than YouTube)
+    for search_query in [
+        f"scsearch1:{search_title} NCS",
+        f"scsearch1:{search_title} no copyright",
+    ]:
+        print(f"  Searching SoundCloud for '{search_title}'...")
+        cmd = [
+            "yt-dlp",
+            "--no-playlist",
+            "-f", "bestaudio/best",
+            "--extract-audio", "--audio-format", "wav",
+            "--audio-quality", "0",
+            "--output", output_file,
+            search_query,
+        ]
+        try:
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
+            if os.path.exists(output_file) and os.path.getsize(output_file) > 100_000:
+                print(f"  Engine 1 Success (SoundCloud search)")
+                return True
+            if os.path.exists(output_file):
+                os.remove(output_file)
+        except subprocess.TimeoutExpired:
+            print("  Engine 1 SoundCloud search timed out")
+        except Exception as e:
+            print(f"  Engine 1 exception: {e}")
 
     return False
 
