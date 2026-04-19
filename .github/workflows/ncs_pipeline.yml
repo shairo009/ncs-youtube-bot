@@ -36,10 +36,22 @@ jobs:
         with:
           python-version: '3.10'
 
-      - name: Install System Dependencies (FFmpeg, OpenCV, Aria2)
+      - name: Install System Dependencies (FFmpeg, OpenCV, Aria2, Tor)
         run: |
           sudo apt-get update
-          sudo apt-get install -y ffmpeg libgl1 libsm6 libxext6 aria2
+          sudo apt-get install -y ffmpeg libgl1 libsm6 libxext6 aria2 tor
+
+      - name: Start Tor and verify circuit
+        run: |
+          sudo service tor start
+          echo "Waiting for Tor circuit to establish..."
+          sleep 15
+          # Verify Tor SOCKS5 is listening on port 9050
+          if nc -z 127.0.0.1 9050 2>/dev/null; then
+            echo "✅ Tor is running on port 9050"
+          else
+            echo "⚠️ Tor may not be ready yet — Engine 5 will auto-skip if unavailable"
+          fi
 
       - name: Install Python Dependencies
         run: |
