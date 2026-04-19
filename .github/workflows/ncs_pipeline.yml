@@ -91,4 +91,4 @@ jobs:
           git config --global user.email 'github-actions[bot]@users.noreply.github.com'
           git add -f downloads_history.txt
           git commit -m "Auto-update download history [skip ci]" || echo "No new history to commit"
-          git push
+          git push || echo "Skipped: no changes to push"
