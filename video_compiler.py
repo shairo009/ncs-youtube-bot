@@ -113,18 +113,20 @@ def get_ncs_color(genre, song_title=""):
     """
     genre_lower = genre.lower().strip()
 
-    # Direct genre match
+    # Direct genre match — skip "ncs release" so keyword fallback gets a chance
     for key, color in NCS_GENRE_COLORS.items():
+        if key == "ncs release":
+            continue
         if key in genre_lower:
             return color
 
-    # Keyword fallback on title
+    # Keyword fallback on title (runs for all genres including "NCS Release")
     title_lower = song_title.lower()
     for keywords, color in KEYWORD_COLORS:
         if any(kw in title_lower for kw in keywords):
             return color
 
-    # Default NCS cyan
+    # Default NCS cyan (true last resort)
     return "#00E5FF"
 
 
