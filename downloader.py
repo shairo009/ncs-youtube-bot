@@ -2,7 +2,6 @@ import subprocess
 import random
 import os
 import json
-import re
 
 HISTORY_FILE = "downloads_history.txt"
 COOKIES_FILE = "cookies.txt"
@@ -24,59 +23,24 @@ def save_to_history(track_id):
 
 
 def detect_genre(title):
-    """
-    Detect genre from NCS title patterns:
-    - Pipe format:    Artist - Song | Genre | NCS x Label ...
-    - Bracket format: Artist - Song [Genre]
-    """
-    SKIP_LABELS = {"ncs release", "ncs", "ncs x aurorian records", "copyright free music", ""}
+    """Detect genre from NCS title pattern: Artist - Song | Genre | NCS - ..."""
+    genre = "NCS Release"
     title_clean = title.replace("\uff5c", "|")
-
-    # Pipe format: pick first part that is not a skip label
     if "|" in title_clean:
         parts = [p.strip() for p in title_clean.split("|")]
-        for part in parts[1:]:          # skip artist/song name (parts[0])
-            candidate = part.strip()
-            if candidate.lower() not in SKIP_LABELS and not candidate.lower().startswith("ncs x"):
-                return candidate
-
-    # Bracket format: Artist - Song [Genre] or Artist - Song [NCS Release]
-    matches = re.findall(r'\[([^\]]+)\]', title_clean)
-    for match in matches:
-        candidate = match.strip()
-        if candidate.lower() not in SKIP_LABELS:
-            return candidate
-
-    return "NCS Release"
-
-
-def find_genre_from_youtube(sc_title, yt_videos):
-    """
-    Cross-reference a SoundCloud title with YouTube videos to get the real genre.
-    SoundCloud uses '[NCS Release]', YouTube uses '| Genre |'.
-    Matches by artist name(s) found in both titles.
-    """
-    # Extract artist part: everything before ' - ' or '[' in the SoundCloud title
-    artist_part = re.split(r'\s*[-–]\s*|\s*\[', sc_title)[0].strip().lower()
-    # artist_part might be like "twisted, kellapsage" or "nuphory, chikaya"
-    # Split by comma to get individual artist names
-    artists = [a.strip() for a in re.split(r'[,&]', artist_part) if a.strip()]
-
-    for yt in yt_videos:
-        yt_lower = yt["title"].lower()
-        # Check if any artist from SoundCloud is in the YouTube title
-        if any(len(a) > 3 and a in yt_lower for a in artists):
-            genre = yt.get("genre", "NCS Release")
-            if genre and genre.lower() != "ncs release":
-                return genre
-    return None
+        if len(parts) >= 2:
+            genre = parts[1]
+    return genre
 
 
 # ─────────────────────────────────────────
 # ENGINE 1: NCS official website (ncs.io)
 # ─────────────────────────────────────────
 def fetch_tracks_from_ncs_io():
-    """Fetch track list from NCS official website (ncs.io/music-search)."""
+    """
+    Fetch track list from NCS official website (ncs.io/music-search).
+    Uses data-artistraw, data-track, data-genre attributes directly.
+    """
     try:
         import requests
         from bs4 import BeautifulSoup
@@ -97,45 +61,24 @@ def fetch_tracks_from_ncs_io():
         soup = BeautifulSoup(resp.text, 'html.parser')
 
         tracks = []
+        seen_ids = set()
 
-        # Approach A: data-tid attributes
+        # Primary: use data-artistraw + data-track + data-genre (actual NCS.io HTML structure)
         for item in soup.find_all(attrs={"data-tid": True}):
             track_id = item.get("data-tid", "").strip()
-            title_el = (
-                item.find(class_=["play-title", "track-title", "title"])
-                or item.find("h3") or item.find("h4")
-            )
-            title = title_el.get_text(strip=True) if title_el else item.get("data-track-title", "")
-            genre = item.get("data-genre", "") or detect_genre(title)
-            if track_id and title:
+            if not track_id or track_id in seen_ids:
+                continue
+            seen_ids.add(track_id)
+
+            artist   = item.get("data-artistraw", "").strip()
+            track    = item.get("data-track", "").strip()
+            genre    = item.get("data-genre", "").strip() or "NCS Release"
+
+            if artist and track:
+                title = f"{artist} - {track}"
                 tracks.append({"id": track_id, "title": title, "genre": genre})
-
-        # Approach B: playlist__item <li>
-        if not tracks:
-            for item in soup.find_all("li", class_=lambda c: c and "playlist" in c.lower()):
-                track_id = (
-                    item.get("data-tid") or item.get("data-id")
-                    or item.get("id", "").replace("track-", "")
-                )
-                title_el = item.find(
-                    class_=lambda c: c and ("title" in c.lower() or "name" in c.lower())
-                )
-                title = title_el.get_text(strip=True) if title_el else ""
-                if title:
-                    tracks.append({
-                        "id": track_id or title,
-                        "title": title,
-                        "genre": item.get("data-genre", "NCS Release"),
-                    })
-
-        # Approach C: any element with data-track-title
-        if not tracks:
-            for item in soup.find_all(attrs={"data-track-title": True}):
-                title = item.get("data-track-title", "").strip()
-                track_id = item.get("data-tid") or item.get("data-id") or title
-                genre = item.get("data-genre", "") or detect_genre(title)
-                if title:
-                    tracks.append({"id": track_id, "title": title, "genre": genre})
+            elif track:
+                tracks.append({"id": track_id, "title": track, "genre": genre})
 
         print(f"NCS.io: Found {len(tracks)} tracks at offset {offset}")
         return tracks
@@ -146,49 +89,40 @@ def fetch_tracks_from_ncs_io():
 
 
 def download_from_ncs_io(track_id, title, output_file):
-    """Download audio from NCS official website using track ID."""
+    """
+    Download NCS track audio using yt-dlp YouTube search.
+    NCS.io direct download requires login, so we search YouTube instead.
+    """
+    print(f"  Searching YouTube for '{title}'...")
+
+    # Build a clean search query: "Artist - Track NCS" (remove brackets/pipes)
+    search_title = re.split(r'\s*[\|\[{]', title)[0].strip()
+    search_query = f"ytsearch1:{search_title} NCS"
+
+    cmd = [
+        "yt-dlp",
+        "--no-playlist",
+        "-f", "bestaudio/best",
+        "--extract-audio", "--audio-format", "wav",
+        "--audio-quality", "0",
+        "--output", output_file,
+        "--match-filter", "duration < 600",
+        search_query,
+    ]
+
     try:
-        import requests
-
-        print(f"  Downloading '{title}' from NCS.io (id={track_id})...")
-        headers = {
-            "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36",
-            "Referer": "https://ncs.io/music",
-            "Accept": "*/*",
-        }
-
-        candidates = [
-            f"https://ncs.io/{track_id}/download",
-            f"https://ncs.io/track/{track_id}/download",
-            f"https://ncs.io/music/{track_id}/download",
-        ]
-
-        for dl_url in candidates:
-            try:
-                resp = requests.get(
-                    dl_url, headers=headers, timeout=90,
-                    allow_redirects=True, stream=True
-                )
-                ctype = resp.headers.get("Content-Type", "")
-                if resp.status_code == 200 and (
-                    "audio" in ctype or "octet-stream" in ctype or "mpeg" in ctype
-                ):
-                    with open(output_file, "wb") as f:
-                        for chunk in resp.iter_content(chunk_size=8192):
-                            f.write(chunk)
-                    if os.path.exists(output_file) and os.path.getsize(output_file) > 100_000:
-                        print(f"  Engine 1 Success via {dl_url}")
-                        return True
-                    if os.path.exists(output_file):
-                        os.remove(output_file)
-            except Exception:
-                continue
-
-        return False
-
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
+        if os.path.exists(output_file) and os.path.getsize(output_file) > 100_000:
+            print(f"  Engine 1 Success (YouTube search for NCS.io track)")
+            return True
+        if result.returncode != 0:
+            print(f"  Engine 1 yt-dlp error: {result.stderr[:200]}")
+    except subprocess.TimeoutExpired:
+        print("  Engine 1 search timed out")
     except Exception as e:
-        print(f"NCS.io download error: {e}")
-        return False
+        print(f"  Engine 1 exception: {e}")
+
+    return False
 
 
 # ──────────────────────────────────────────────────────
@@ -390,13 +324,6 @@ def download_random_ncs_song(output_dir="downloads"):
         fresh_sc = [t for t in sc_tracks if t["id"] not in history]
         chosen_sc = fresh_sc[0] if fresh_sc else sc_tracks[0]
         print(f"  Trying: {chosen_sc['title']}")
-
-        # SoundCloud titles use '[NCS Release]' — cross-reference YouTube for real genre
-        if chosen_sc["genre"] == "NCS Release" and yt_videos:
-            yt_genre = find_genre_from_youtube(chosen_sc["title"], yt_videos)
-            if yt_genre:
-                chosen_sc["genre"] = yt_genre
-                print(f"  Genre resolved via YouTube: {yt_genre}")
 
         if download_via_ytdlp(chosen_sc["url"], audio_file, use_cookies=False):
             save_to_history(chosen_sc["id"])
