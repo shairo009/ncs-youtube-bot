@@ -27,19 +27,20 @@
       position: relative;
       z-index: 1;
     }
+    /* ALL theme-colored elements use CSS variable — no hardcoded colors */
+    .theme-color  { color: var(--theme-color) !important; }
+    .theme-bg     { background-color: var(--theme-color) !important; }
+    .theme-stroke { stroke: var(--theme-color) !important; }
+    .vis-bar      { background-color: var(--theme-color) !important; }
   </style>
 </head>
 <body>
 
-  <!-- Scale Wrapper to proportionally magnify mobile layout into HD -->
   <div id="scale-container">
-
-    <!-- Main Full-Screen Container -->
     <div class="h-full w-full flex flex-col items-center justify-between pt-4 pb-10 px-6 font-sans text-gray-600 select-none">
       
-      <!-- TOP GROUP: Header + Track Info -->
+      <!-- Header -->
       <div class="w-full flex flex-col items-center">
-        <!-- Top Header Section -->
         <div class="w-full flex justify-between items-center max-w-md">
           <button class="w-10 h-10 rounded-full bg-[#e6e9ef] shadow-[4px_4px_8px_#bebebe,-4px_-4px_8px_#ffffff] flex items-center justify-center">
             <i data-lucide="chevron-left" class="text-gray-400" width="18" height="18"></i>
@@ -54,69 +55,56 @@
 
         <!-- Track Info -->
         <div class="text-center mt-1 px-8">
-          <p class="text-[10px] font-bold tracking-[0.2em] opacity-80 mb-1 uppercase" style="color: var(--theme-color);">NO COPY RIGHT SONG</p>
+          <p class="text-[10px] font-bold tracking-[0.2em] opacity-80 mb-1 uppercase theme-color">NO COPY RIGHT SONG</p>
           <h1 class="text-xl font-bold text-gray-800 tracking-tight leading-tight">{{SONG_NAME}}</h1>
         </div>
       </div>
 
-      <!-- Central Interactive Dial Area -->
+      <!-- Central Dial -->
       <div class="relative flex items-center justify-center h-[340px] w-[340px]">
         
-        <!-- 1. Sunken Track -->
+        <!-- Sunken Track -->
         <div class="absolute w-[296px] h-[296px] rounded-full shadow-[inset_12px_12px_24px_#bebebe,inset_-12px_-12px_24px_#ffffff]"></div>
         
-        <!-- 2. SVG Progress Ring -->
+        <!-- SVG Progress Ring -->
         <div class="absolute inset-0 flex items-center justify-center z-10 pointer-events-none">
           <svg class="w-[340px] h-[340px] -rotate-90">
-            <circle
-              cx="170"
-              cy="170"
-              r="126"
-              fill="none"
-              stroke="#d1d9e6"
-              stroke-width="2"
-              opacity="0.2"
-            />
+            <circle cx="170" cy="170" r="126" fill="none" stroke="#d1d9e6" stroke-width="2" opacity="0.2"/>
             <circle
               id="ringProgress"
-              cx="170"
-              cy="170"
-              r="126"
+              cx="170" cy="170" r="126"
               fill="none"
-              stroke="var(--theme-color)"
+              class="theme-stroke"
               stroke-width="5"
               stroke-linecap="round"
               stroke-dasharray="791.68"
               stroke-dashoffset="791.68"
-              class="transition-all duration-100 ease-linear"
+              style="transition: stroke-dashoffset 0.1s linear;"
             />
           </svg>
         </div>
 
-        <!-- 3. Fitted Bubble -->
-        <div 
-          id="bubbleContainer"
-          class="absolute z-30 transition-all duration-100 ease-linear pointer-events-none"
-        >
+        <!-- Bubble -->
+        <div id="bubbleContainer" class="absolute z-30 pointer-events-none" style="transition: transform 0.1s linear;">
           <div class="w-[44px] h-[44px] rounded-full bg-[#e6e9ef] shadow-[3px_3px_6px_#bebebe,-2px_-2px_6px_#ffffff] flex items-center justify-center border border-white/90 ring-1 ring-black/5">
-            <span id="bubblePercent" class="text-[10px] font-black leading-none" style="color: var(--theme-color);">0%</span>
+            <span id="bubblePercent" class="text-[10px] font-black leading-none theme-color">0%</span>
           </div>
         </div>
         
-        <!-- 4. Centre Circle (Knob) -->
+        <!-- Centre Knob with Visualizer Bars -->
         <div class="relative w-52 h-52 rounded-full bg-[#e6e9ef] shadow-[15px_15px_30px_#bebebe,-15px_-15px_30px_#ffffff] flex items-center justify-center z-20 border border-white/40">
           <div class="flex items-end gap-1.5 h-14" id="visContainer"></div>
         </div>
       </div>
 
-      <!-- Timeline Section -->
+      <!-- Timeline -->
       <div class="w-full max-w-sm px-4">
         <div class="flex justify-between text-[10px] font-bold opacity-30 mb-2">
           <span id="timeNow">00:00</span>
-          <span>00:59</span>
+          <span id="timeDur">00:59</span>
         </div>
         <div class="h-1.5 w-full bg-[#d1d9e6] rounded-full shadow-[inset_2px_2px_4px_#bebebe,inset_-2px_-2px_4px_#ffffff] overflow-hidden">
-          <div id="progBar" class="h-full transition-all duration-100" style="width: 0%; background: var(--theme-color);"></div>
+          <div id="progBar" class="h-full theme-bg" style="width: 0%; transition: width 0.1s linear;"></div>
         </div>
       </div>
 
@@ -127,7 +115,7 @@
             <i data-lucide="minus" width="12" height="12" class="opacity-60"></i>
           </button>
           <div class="w-10 h-10 rounded-full bg-[#e6e9ef] shadow-[inset_3px_3px_6px_#bebebe,inset_-3px_-3px_6px_#ffffff] flex items-center justify-center">
-            <span class="text-xs font-bold" style="color: var(--theme-color);">3</span>
+            <span class="text-xs font-bold theme-color">3</span>
           </div>
           <button class="w-9 h-9 rounded-full bg-[#e6e9ef] shadow-[3px_3px_6px_#bebebe,-3px_-3px_6px_#ffffff] flex items-center justify-center">
             <i data-lucide="plus" width="12" height="12" class="opacity-60"></i>
@@ -141,11 +129,9 @@
         <button class="w-14 h-14 rounded-full bg-[#e6e9ef] shadow-[6px_6px_12px_#bebebe,-6px_-6px_12px_#ffffff] flex items-center justify-center text-gray-400">
           <i data-lucide="skip-back" fill="currentColor" class="opacity-50" width="20" height="20"></i>
         </button>
-
-        <button class="w-20 h-20 rounded-full bg-[#e6e9ef] shadow-[8px_8px_16px_#bebebe,-8px_-8px_16px_#ffffff] flex items-center justify-center relative" style="color: var(--theme-color);">
+        <button class="w-20 h-20 rounded-full bg-[#e6e9ef] shadow-[8px_8px_16px_#bebebe,-8px_-8px_16px_#ffffff] flex items-center justify-center relative theme-color">
           <i data-lucide="pause" fill="currentColor" width="32" height="32"></i>
         </button>
-
         <button class="w-14 h-14 rounded-full bg-[#e6e9ef] shadow-[6px_6px_12px_#bebebe,-6px_-6px_12px_#ffffff] flex items-center justify-center text-gray-400">
           <i data-lucide="skip-forward" fill="currentColor" class="opacity-50" width="20" height="20"></i>
         </button>
@@ -157,19 +143,23 @@
   <script>
     lucide.createIcons();
 
-    // Read theme color — trim whitespace to avoid invalid color values
-    const themeColor = getComputedStyle(document.documentElement).getPropertyValue('--theme-color').trim();
-
-    // Visualizer Bars logic
-    const vis = document.getElementById('visContainer');
     const AMPLITUDE_DATA = {{AMPLITUDE_DATA}};
-    
+    const tDur = {{DURATION}};
+
+    // Show real duration in timeline
+    const totalSec = Math.floor(tDur);
+    const durMin = String(Math.floor(totalSec / 60)).padStart(2, '0');
+    const durSec = String(totalSec % 60).padStart(2, '0');
+    document.getElementById('timeDur').innerText = `${durMin}:${durSec}`;
+
+    // Build visualizer bars — color comes from CSS .vis-bar class (var(--theme-color))
+    const vis = document.getElementById('visContainer');
     let bars = [];
-    for(let i=0; i<7; i++) {
+    for (let i = 0; i < 7; i++) {
       let b = document.createElement('div');
-      b.className = 'w-1.5 rounded-full transition-all duration-100 ease-out';
-      b.style.backgroundColor = themeColor;
+      b.className = 'w-1.5 rounded-full vis-bar';
       b.style.height = '40%';
+      b.style.transition = 'height 0.1s ease-out';
       vis.appendChild(b);
       bars.push(b);
     }
@@ -182,10 +172,8 @@
       bars.forEach((b, i) => {
         let h;
         if (Array.isArray(frame)) {
-          // Spectrum mode: each bar = its own frequency band
           h = Math.min(100, Math.max(12, frame[i] !== undefined ? frame[i] : 12));
         } else {
-          // Legacy fallback
           const stagger = 1 + (Math.sin(i * 0.5) * 0.2);
           h = Math.min(100, Math.max(20, frame * stagger));
         }
@@ -193,47 +181,41 @@
       });
     }
 
-    // Progress Logic
-    const tDur = {{DURATION}}; 
-    let startTime = performance.now();
+    // Progress & animation
     const radius = 126;
     const dashArray = 2 * Math.PI * radius;
-    
     const ring = document.getElementById('ringProgress');
     const progBar = document.getElementById('progBar');
     const timeNow = document.getElementById('timeNow');
     const bubbleContainer = document.getElementById('bubbleContainer');
     const bubblePercent = document.getElementById('bubblePercent');
 
+    let startTime = performance.now();
+
     function updateUI(now) {
       let elapsed = (now - startTime) / 1000;
-      if(elapsed > tDur) elapsed = tDur;
+      if (elapsed > tDur) elapsed = tDur;
       let p = elapsed / tDur;
       let percent = Math.floor(p * 100);
 
-      // Linear bar
-      progBar.style.width = (p*100) + '%';
-      
-      // Text time
-      let sec = Math.floor(elapsed).toString().padStart(2, '0');
-      timeNow.innerText = `00:${sec}`;
+      progBar.style.width = (p * 100) + '%';
 
-      // SVG Ring
+      const elMin = String(Math.floor(elapsed / 60)).padStart(2, '0');
+      const elSec = String(Math.floor(elapsed % 60)).padStart(2, '0');
+      timeNow.innerText = `${elMin}:${elSec}`;
+
       ring.style.strokeDashoffset = dashArray - (dashArray * p);
 
-      // Bubble Position
       const angle = (p * 360) - 90;
       const angleRad = (angle * Math.PI) / 180;
       const x = Math.cos(angleRad) * radius;
       const y = Math.sin(angleRad) * radius;
-      
       bubbleContainer.style.transform = `translate(${x}px, ${y}px)`;
       bubblePercent.innerText = `${percent}%`;
 
-      // Update Visualizer bars
       updateVisualizer(elapsed);
 
-      if(elapsed < tDur) requestAnimationFrame(updateUI);
+      if (elapsed < tDur) requestAnimationFrame(updateUI);
     }
     requestAnimationFrame(updateUI);
   </script>
