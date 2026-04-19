@@ -30,33 +30,65 @@ def get_ncs_color(genre):
     return "#00BCD4"
 
 
-def compute_amplitude_data(audio_path, duration, offset=0.0, samples_per_sec=10):
+def compute_spectrum_data(audio_path, duration, offset=0.0, samples_per_sec=10, n_bands=7):
     """
-    Compute amplitude envelope from audio at `samples_per_sec` Hz.
-    Returns a flat list of floats (0-100 range) for the JS visualizer.
+    Compute per-frequency-band amplitude data for the spectrum visualizer.
+    Returns list of frames: [[band1, band2, ..., band7], ...] each 0-100.
+    7 bands: sub-bass, bass, low-mid, mid, high-mid, high, air
     """
+    # Frequency band edges (Hz)
+    BAND_EDGES = [20, 60, 250, 500, 2000, 4000, 8000, 20000]
+
     try:
         import librosa
+
         y, sr = librosa.load(audio_path, sr=None, mono=True, offset=offset, duration=duration)
         hop_length = max(1, int(sr / samples_per_sec))
-        rms = librosa.feature.rms(y=y, hop_length=hop_length)[0]
 
-        rms_max = rms.max() if rms.max() > 0 else 1.0
-        normalised = (rms / rms_max * 100).tolist()
+        # Full STFT
+        D = np.abs(librosa.stft(y, hop_length=hop_length, n_fft=2048))
+        freqs = librosa.fft_frequencies(sr=sr, n_fft=2048)
+        n_frames = D.shape[1]
 
+        # Compute energy per band per frame
+        raw_bands = []
+        for b in range(n_bands):
+            low_hz = BAND_EDGES[b]
+            high_hz = BAND_EDGES[b + 1]
+            mask = (freqs >= low_hz) & (freqs < high_hz)
+            if not np.any(mask):
+                raw_bands.append(np.zeros(n_frames))
+                continue
+            energy = D[mask, :].mean(axis=0)  # mean energy across bins in band
+            raw_bands.append(energy)
+
+        # Normalise each band independently (0-100)
+        norm_bands = []
+        for energy in raw_bands:
+            peak = energy.max() if energy.max() > 0 else 1.0
+            norm_bands.append((energy / peak * 100).tolist())
+
+        # Transpose to (n_frames, n_bands), trim/pad to target length
         target_len = int(duration * samples_per_sec)
-        if len(normalised) > target_len:
-            normalised = normalised[:target_len]
-        else:
-            normalised += [normalised[-1] if normalised else 40.0] * (target_len - len(normalised))
+        result = []
+        for fi in range(target_len):
+            if fi < n_frames:
+                frame = [max(12.0, norm_bands[b][fi]) for b in range(n_bands)]
+            else:
+                frame = [12.0] * n_bands
+            result.append(frame)
 
-        print(f"  Amplitude data: {len(normalised)} samples computed.")
-        return normalised
+        print(f"  Spectrum data: {len(result)} frames x {n_bands} bands.")
+        return result
 
     except Exception as e:
-        print(f"  Warning: Could not compute amplitude data ({e}). Using sine fallback.")
+        print(f"  Warning: spectrum compute failed ({e}). Using animated fallback.")
         target_len = int(duration * samples_per_sec)
-        return [40 + 40 * abs(np.sin(i * 0.3)) for i in range(target_len)]
+        return [
+            [max(12.0, 40 + 40 * abs(np.sin(fi * 0.3 + b * 0.9)))
+             for b in range(n_bands)]
+            for fi in range(target_len)
+        ]
 
 
 def create_music_video(
@@ -71,7 +103,7 @@ def create_music_video(
         print("Error: Missing audio source.")
         return False
 
-    print(f"Preparing to assemble modern Neumorphic UI for genre: {song_genre}...")
+    print(f"Preparing Neumorphic UI for genre: {song_genre}...")
 
     # 1. Snippet the Audio
     audio_clip = AudioFileClip(audio_path)
@@ -83,24 +115,23 @@ def create_music_video(
             time_offset = random.uniform(duration * 0.3, duration * 0.6)
             if time_offset + 59 > duration:
                 time_offset = duration - 59
-            print(f"Snipping 59s track from {time_offset:.1f}s")
+            print(f"Snipping 59s from {time_offset:.1f}s")
             audio_clip = audio_clip.subclip(time_offset, time_offset + 59)
             duration = 59
 
-    # 2. Compute Amplitude Data for the visualizer (FIX: this was missing before)
-    print("Computing amplitude data for visualizer...")
-    amplitude_data = compute_amplitude_data(audio_path, duration, offset=time_offset)
+    # 2. Compute per-band spectrum data
+    print("Computing spectrum data for beat-sync visualizer...")
+    spectrum_data = compute_spectrum_data(audio_path, duration, offset=time_offset)
 
     # 3. Inject ALL placeholders into HTML Template
     template_path = "ui_template.html"
     if not os.path.exists(template_path):
-        print(f"Error: Custom UI template {template_path} not found!")
+        print(f"Error: {template_path} not found!")
         return False
 
     with open(template_path, "r", encoding="utf-8") as f:
         html = f.read()
 
-    # Sanitise title
     display_title = song_title[:32] + "..." if len(song_title) > 32 else song_title
     display_title = (
         display_title
@@ -114,30 +145,30 @@ def create_music_video(
     html = html.replace("{{SONG_NAME}}", display_title)
     html = html.replace("{{DURATION}}", str(duration))
     html = html.replace("{{THEME_COLOR}}", theme_color)
-    html = html.replace("{{AMPLITUDE_DATA}}", json.dumps(amplitude_data))  # FIX: was never replaced before
+    html = html.replace("{{AMPLITUDE_DATA}}", json.dumps(spectrum_data))
 
     with open("temp_ui.html", "w", encoding="utf-8") as f:
         f.write(html)
 
-    print(f"HTML template ready: song='{display_title}', color={theme_color}, amp_samples={len(amplitude_data)}")
+    print(f"HTML ready: '{display_title}' | {theme_color} | {len(spectrum_data)} frames")
 
-    # 4. Call Playwright to record UI
+    # 4. Playwright record
     ui_webm_path = "downloads/ui_recording.webm"
-    print(f"Running Playwright Recorder for {duration} seconds...")
+    print(f"Playwright recording for {duration}s...")
     try:
         subprocess.run(
             [sys.executable, "html_recorder.py", str(duration), ui_webm_path],
             check=True,
         )
     except subprocess.CalledProcessError as e:
-        print(f"Playwright recording failed: {e}")
+        print(f"Playwright failed: {e}")
         return False
 
-    # 5. Mix Video and Audio using MoviePy
     if not os.path.exists(ui_webm_path):
-        print("Error: WebM UI video was not created by Playwright.")
+        print("Error: WebM not created.")
         return False
 
+    # 5. Mux video + audio
     print("Muxing final MP4...")
     video_clip = VideoFileClip(ui_webm_path).subclip(0, duration)
     final_clip = video_clip.set_audio(audio_clip)
@@ -153,8 +184,8 @@ def create_music_video(
             preset="ultrafast",
             logger=None,
         )
-        print(f"Success! Final video rendered at: {output_path}")
+        print(f"Done! Video at: {output_path}")
         return output_path
     except Exception as e:
-        print(f"Failed to render video: {e}")
+        print(f"Render failed: {e}")
         return False
