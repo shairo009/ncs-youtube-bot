@@ -103,13 +103,43 @@ def infer_genre_from_ncs_tracks(title, tracks):
     return "NCS Release"
 
 
+def _ncs_search_queries(title):
+    cleaned = (title or "").replace("｜", "|").split("|")[0]
+    cleaned = re.sub(r"\[[^\]]*\]", " ", cleaned)
+    cleaned = re.sub(r"\([^)]*(version|edit|mix|remix|visualizer|lyrics|tiktok|sped|slowed)[^)]*\)", " ", cleaned, flags=re.I)
+    cleaned = re.sub(r"\s+", " ", cleaned).strip()
+
+    queries = []
+    if " - " in cleaned:
+        artist, track = cleaned.split(" - ", 1)
+        queries.extend([track.strip(), artist.strip(), cleaned])
+    else:
+        queries.append(cleaned)
+
+    normalized = _normalize_track_text(cleaned)
+    words = [w for w in normalized.split() if len(w) > 2]
+    if words:
+        queries.append(" ".join(words[:4]))
+        queries.extend(words[:3])
+
+    unique = []
+    seen = set()
+    for query in queries:
+        query = query.strip(" -,.![]()")
+        key = query.lower()
+        if query and key not in seen:
+            seen.add(key)
+            unique.append(query)
+    return unique
+
+
 def lookup_genre_from_ncs_io(title):
-    query = _normalize_track_text(title)
-    if not query:
-        return "NCS Release"
-    query = " ".join(query.split()[:6])
-    tracks = fetch_tracks_from_ncs_io(search_query=query)
-    return infer_genre_from_ncs_tracks(title, tracks)
+    for query in _ncs_search_queries(title):
+        tracks = fetch_tracks_from_ncs_io(search_query=query)
+        genre = infer_genre_from_ncs_tracks(title, tracks)
+        if not is_generic_genre(genre):
+            return genre
+    return "NCS Release"
 
 
 def _cleanup_temp(path):
