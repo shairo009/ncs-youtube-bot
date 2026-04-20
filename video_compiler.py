@@ -200,8 +200,8 @@ def _normalize_color_text(value):
     value = (value or "").lower().replace("｜", "|")
     value = value.replace("&", " and ")
     value = re.sub(r"[^a-z0-9]+", " ", value)
-    value = re.sub(r"ds*ns*b", "dnb", value)
-    value = re.sub(r"s+", " ", value).strip()
+    value = re.sub(r"\bd\s*n\s*b\b", "dnb", value)
+    value = re.sub(r"\s+", " ", value).strip()
     return value
 
 
