@@ -69,11 +69,11 @@ def is_generic_genre(genre):
 def _normalize_track_text(value):
     value = (value or "").lower().replace("｜", "|")
     value = value.split("|")[0]
-    value = re.sub(r"[[^]]*(ncs|release|copyright|free|music)[^]]*]", " ", value, flags=re.I)
-    value = re.sub(r"([^)]*(version|edit|mix|remix|visualizer|lyrics|tiktok|sped|slowed)[^)]*)", " ", value, flags=re.I)
-    value = re.sub(r"(ncs|no copyright sounds|copyright free music|official|video|visualizer)", " ", value, flags=re.I)
+    value = re.sub(r"\[[^\]]*(ncs|release|copyright|free|music)[^\]]*\]", " ", value, flags=re.I)
+    value = re.sub(r"\([^)]*(version|edit|mix|remix|visualizer|lyrics|tiktok|sped|slowed)[^)]*\)", " ", value, flags=re.I)
+    value = re.sub(r"\b(ncs|no copyright sounds|copyright free music|official|video|visualizer)\b", " ", value, flags=re.I)
     value = re.sub(r"[^a-z0-9]+", " ", value)
-    return re.sub(r"s+", " ", value).strip()
+    return re.sub(r"\s+", " ", value).strip()
 
 
 def infer_genre_from_ncs_tracks(title, tracks):
