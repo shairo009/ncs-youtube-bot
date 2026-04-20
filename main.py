@@ -46,11 +46,11 @@ def run_ncs_automation(video_type="long", no_upload=False):
         except: pass
         
         # Cleanup
-        print("🧹 Cleaning up workspace...")
+        print("🧹 Cleaning up source audio (keeping final video for GitHub artifact)...")
         try:
             if os.path.exists(audio_path): os.remove(audio_path)
-            if os.path.exists(video_path): os.remove(video_path)
-        except: pass
+        except Exception as e:
+            print(f"Cleanup warning: {e}")
             
     else:
         print("\n❌ Pipeline Failed at Final Upload Step.")
